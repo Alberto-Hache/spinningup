@@ -8,4 +8,17 @@ data/
 .vscode/
 .DS_Store
 _build/
+
+# Ignore Python virtual environments
 .venv/
+env/
+venv/
+
+# Ignore compiled Python files
+*.pyc
+__pycache__/
+
+# Ignore system files
+.DS_Store
+.idea/
+.vscode/

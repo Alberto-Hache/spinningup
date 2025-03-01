@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-import gym
+import gymnasium as gym
 from gym.spaces import Discrete, Box
 
 def mlp(x, sizes, activation=tf.tanh, output_activation=None):

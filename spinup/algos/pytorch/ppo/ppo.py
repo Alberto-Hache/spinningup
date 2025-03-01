@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch.optim import Adam
-import gym
+import gymnasium as gym
 import time
 import spinup.algos.pytorch.ppo.core as core
 from spinup.utils.logx import EpochLogger
@@ -292,14 +292,15 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
 
     # Prepare for interaction with environment
     start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
+    o, _ = env.reset()  # Unpack the observation and info
+    ep_ret, ep_len = 0, 0  # Initialize episode return and length
 
     # Main loop: collect experience in env and update/log each epoch
     for epoch in range(epochs):
         for t in range(local_steps_per_epoch):
             a, v, logp = ac.step(torch.as_tensor(o, dtype=torch.float32))
 
-            next_o, r, d, _ = env.step(a)
+            next_o, r, d, truncated, _ = env.step(a)  # AH: For compatibility with gymnasium. info is not used.
             ep_ret += r
             ep_len += 1
 
@@ -311,7 +312,7 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             o = next_o
 
             timeout = ep_len == max_ep_len
-            terminal = d or timeout
+            terminal = d or truncated or timeout
             epoch_ended = t==local_steps_per_epoch-1
 
             if terminal or epoch_ended:
@@ -326,12 +327,15 @@ def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                 if terminal:
                     # only save EpRet / EpLen if trajectory finished
                     logger.store(EpRet=ep_ret, EpLen=ep_len)
-                o, ep_ret, ep_len = env.reset(), 0, 0
+                
+                o, info = env.reset()
+                ep_ret, ep_len = 0, 0
 
 
         # Save model
         if (epoch % save_freq == 0) or (epoch == epochs-1):
-            logger.save_state({'env': env}, None)
+            # logger.save_state({'env': env}, None)
+            logger.save_state({'env_name': env.spec.id}, None)
 
         # Perform PPO update!
         update()

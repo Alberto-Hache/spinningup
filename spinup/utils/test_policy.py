@@ -4,6 +4,7 @@ import os
 import os.path as osp
 import tensorflow as tf
 import torch
+import gymnasium as gym
 from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
 
@@ -57,10 +58,14 @@ def load_policy_and_env(fpath, itr='last', deterministic=False):
     # (sometimes this will fail because the environment could not be pickled)
     try:
         state = joblib.load(osp.join(fpath, 'vars'+itr+'.pkl'))
-        env = state['env']
-    except:
+        env_name = state.get('env_name')
+        if env_name is None:
+            raise ValueError("No environment name found in saved state!")
+        env_name = state.get('env_name')
+        env = gym.make(env_name, render_mode='human')
+    except Exception as e:
+        print(f"Error loading environment: {e}")
         env = None
-
     return env, get_action
 
 
@@ -95,7 +100,7 @@ def load_pytorch_policy(fpath, itr, deterministic=False):
     fname = osp.join(fpath, 'pyt_save', 'model'+itr+'.pt')
     print('\n\nLoading from %s.\n\n'%fname)
 
-    model = torch.load(fname)
+    model = torch.load(fname, weights_only=False)
 
     # make function for producing an action given a single state
     def get_action(x):
@@ -115,21 +120,23 @@ def run_policy(env, get_action, max_ep_len=None, num_episodes=100, render=True):
         "page on Experiment Outputs for how to handle this situation."
 
     logger = EpochLogger()
-    o, r, d, ep_ret, ep_len, n = env.reset(), 0, False, 0, 0, 0
+    o, info = env.reset()
+    r, d, ep_ret, ep_len, n = 0, False, 0, 0, 0
     while n < num_episodes:
         if render:
             env.render()
             time.sleep(1e-3)
 
         a = get_action(o)
-        o, r, d, _ = env.step(a)
+        o, r, d, truncated, _ = env.step(a)
         ep_ret += r
         ep_len += 1
 
-        if d or (ep_len == max_ep_len):
+        if d or truncated or (ep_len == max_ep_len):
             logger.store(EpRet=ep_ret, EpLen=ep_len)
             print('Episode %d \t EpRet %.3f \t EpLen %d'%(n, ep_ret, ep_len))
-            o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
+            o, info = env.reset()
+            r, d, ep_ret, ep_len, n = 0, False, 0, 0, 0
             n += 1
 
     logger.log_tabular('EpRet', with_min_and_max=True)
